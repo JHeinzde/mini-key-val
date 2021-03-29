@@ -1,19 +1,27 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::Read;
+use std::sync::mpsc::Sender;
 use std::sync::Mutex;
 
 use rocket::{Data, State};
 use rocket::response::status::NotFound;
 
+use crate::raft::Action;
+
 pub struct Cache(pub HashMap<String, Vec<u8>>);
 
 
 #[post("/insert/<uuid>", data = "<object>")]
-pub fn insert_into_cache(uuid: String, object: Data, storage: State<Mutex<Cache>>) -> Result<(), Box<dyn Error>> {
+pub fn insert_into_cache(uuid: String, object: Data,
+                         storage: State<Mutex<Cache>>,
+                         sender: State<Mutex<Sender<Action>>>) -> Result<(), Box<dyn Error>> {
     let mut body_stream = object.open();
     let mut value = Vec::new();
     body_stream.read_to_end(&mut value)?;
+
+    let sender_clone = sender.lock().unwrap();
+    sender_clone.clone().send(Action::SetAction { key: uuid.clone(), value: value.clone() });
 
     let mut lock = storage.lock().unwrap();
     lock.0.insert(uuid, value);
@@ -56,7 +64,7 @@ mod test {
         let rocket = rocket::ignite().mount("/", routes![get_cache_value,
             insert_into_cache,
             delete_cache_value])
-                   .manage(Mutex::new(cache));
+            .manage(Mutex::new(cache));
         let client = Client::new(rocket).expect("valid rocket instance");
 
         let key = String::from("this-is-a-test-key");
