@@ -41,3 +41,71 @@ pub fn delete_cache_value(uuid: String, storage: State<Mutex<Cache>>) -> Result<
         Err(NotFound(String::from("This key was not found")))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use rocket::http::Status;
+    use rocket::local::Client;
+
+    use super::*;
+
+    #[test]
+    fn test_insert() {
+        let storage: HashMap<String, Vec<u8>> = HashMap::new();
+        let cache = Cache(storage);
+        let rocket = rocket::ignite().mount("/", routes![get_cache_value,
+            insert_into_cache,
+            delete_cache_value])
+                   .manage(Mutex::new(cache));
+        let client = Client::new(rocket).expect("valid rocket instance");
+
+        let key = String::from("this-is-a-test-key");
+        let mut value: Vec<u8> = Vec::new();
+        value.push(32);
+        value.push(64);
+        value.push(128);
+
+        let req = client.post(["/insert/", &key].join(""))
+            .body(value.clone());
+        let response = req.dispatch();
+
+        assert_eq!(Status::Ok, response.status());
+
+        let req = client.get(["/retrieve/", &key].join(""));
+        let mut response = req.dispatch();
+
+        assert_eq!(Status::Ok, response.status());
+        assert_eq!(value.clone(), response.body_bytes().unwrap())
+    }
+
+    #[test]
+    fn test_delete() {
+        let storage: HashMap<String, Vec<u8>> = HashMap::new();
+        let cache = Cache(storage);
+        let rocket = rocket::ignite().mount("/", routes![get_cache_value,
+            insert_into_cache,
+            delete_cache_value])
+            .manage(Mutex::new(cache));
+        let client = Client::new(rocket).expect("valid rocket instance");
+
+        let key = String::from("this-is-a-test-key");
+        let mut value: Vec<u8> = Vec::new();
+        value.push(32);
+        value.push(64);
+        value.push(128);
+
+        let req = client.post(["/insert/", &key].join(""))
+            .body(value.clone());
+        let _response = req.dispatch();
+
+        let req = client.delete(["/delete/", &key].join(""));
+        let response = req.dispatch();
+
+        assert_eq!(Status::Ok, response.status());
+
+        let req = client.get(["/retrieve/", &key].join(""));
+        let response = req.dispatch();
+
+        assert_eq!(Status::NotFound, response.status());
+    }
+}
