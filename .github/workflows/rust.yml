@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-tst:
+  build-test:
     name: Build and test
     runs-on: ubuntu-latest
     steps:
@@ -26,9 +26,8 @@ jobs:
           components: clippy
 
       - name: Run cargo test
-        uses: actions-rs/cargo@v1
         run: cargo test --verbose
+
       - name: Run cargo build
-        uses: actions-rs/cargo@v1
         run: cargo build --verbose
 
